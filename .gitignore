@@ -1,0 +1,9 @@
+# ignore local binary
+sshellkeeper
+
+# ignore local config file
+appconfig.toml
+
+# ignore key files
+test_rsa
+*.pub

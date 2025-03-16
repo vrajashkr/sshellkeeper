@@ -1,0 +1,58 @@
+name: Code Check
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  code-check:
+    name: Code Check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Install dependencies
+        run: go mod download
+      - name: Install gofumpt
+        run: go install mvdan.cc/gofumpt@v0.7.0
+      - name: Check code format
+        run: |
+          deviants=$(gofumpt -l .)
+          echo $deviants
+          [ -z "$deviants" ]
+      - name: Golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          args: --timeout=3m
+      - name: Build code
+        run: make build
+      - name: Run unit tests and coverage
+        run: make test-race-coverage
+      - name: Prepare code coverage report
+        run: |
+          echo "Coverage" > $COV_FILE
+          echo '```' >> $COV_FILE
+          go tool cover -func=coverage.out >> $COV_FILE
+          echo "" >> $COV_FILE
+          echo '```' >> $COV_FILE
+        env:
+          COV_FILE: coverage.txt
+      - name: Publish code coverage report
+        if: github.event_name == 'pull_request'
+        run: "gh pr comment ${{ github.event.pull_request.number }} --body-file $COV_FILE --create-if-none --edit-last"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          COV_FILE: coverage.txt
